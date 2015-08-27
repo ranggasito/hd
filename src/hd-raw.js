@@ -31,19 +31,44 @@ hd.jql = {
 		if(typeof q === 'string'){
 			var ele = this instanceof NodeList || this instanceof Array?this[0]:!this.ownerDocument?document:this,
 			eles;
-			if(ele === document && q.match(new RegExp(hd.data.regex.node,'gim'))){
+			if(ele === document && q.match(/^<.*\/>$/gi)){
 				// if q match html tag and the root is document then parse q to html elements
-				var container = document.createElement('div');
-				container.innerHTML = q;
-				eles = container.childNodes;
-				$.log(eles);			
+				// create element
+				var tag = q.replace(/^<(\w+).*/i,'$1'),
+				att = q.match(/(\w\d?)+=".[^"]*"/gi),
+				ele = hd.import(document.createElement(tag));
+				if(att){
+					for(var i=0;i<att.length;i++){
+						var at = att[i].replace(/(\w+\d?)=.*/i,'$1'),
+						value = att[i].replace(/\w+\d?="(.*)"/i,'$1');
+						ele.atb(at,value);
+					}
+				}		
+				tag = att = null;
+				eles=ele;
+			}else if(ele === document && q.match(new RegExp(hd.data.regex.node,'gi'))){
+				var f = q.replace(/\n+|\s{2,}|\t/g,''),
+				tag = f.replace(/^<([a-z0-9]+).*/i,'$1'),
+				att = f.replace(/^<[a-z0-9]+(.[^>]*)>.*/gi,'$1').match(/(\w\d?)+=".[^"]*"/gi),
+				ele = hd.import(document.createElement(tag));
+				ele.innerHTML = f.replace(/<([A-Z][A-Z0-9]*)\b[^>]*>(.*?)<\/\1>/i,'$2');
+				if(att){
+					for(var i=0;i<att.length;i++){
+						var at = att[i].replace(/(\w+\d?)=.*/i,'$1'),
+						value = att[i].replace(/\w+\d?="(.*)"/i,'$1');
+						ele.atb(at,value);
+					}
+				}	
+				eles=ele;
 			}else{
 				try {
 					eles = ele.querySelectorAll(q);
+					if(eles.length<=0) eles = null
 				} catch (error) {
 					eles=null;
 				}
 			}
+			
 			
 			if(eles){
 				hd.import(eles);
@@ -61,49 +86,31 @@ hd.jql = {
 	},
 	each:function(fn){
 		if('function' !== typeof fn) return false;
-		if(this instanceof NodeList){
-			for (var i=0;i<this.length;i++) {
-				fn.call(this[i],i,this[i]);
-			}
-		}else{
-			var qs = this.querySelectorAll('*');
-			for (var i=0;i<qs.length;i++) {
-				if(qs[i].parentNode == this)fn.call(qs[i],i,qs[i]);
-			}
+		if(typeof this.length === 'undefined') return;
+		for (var i=0;i<this.length;i++) {
+			fn.call(this[i],i,this[i]);
 		}
 	},
 	first:function(){
-		return hd.import(this[0]);
+		return this[0];
 	},
 	last:function(){
-		return hd.import(this[this.length-1]);
+		return this[this.length-1];
 	},
 	items:function(i){
 		if(typeof i === 'number') return this[i];	
 	},
 	addChild:function(e,index){
-		if(e==null) return false;
+		if(e==null) return;
 		var parent = this instanceof NodeList?this[0]:this instanceof Array?this[0].parentNode:this,
 		ele;
-
-		if(typeof e ==='string'){
-			if(e.match(/^<.*\/>$/gi)){
-				// create element
-				var tag = e.replace(/^<(\w+).*/i,'$1'),
-				att = e.match(/(\w\d?)+=".[^"]*"/gi),
-				ele = hd.import(document.createElement(tag));
-				if(att){
-					for(var i=0;i<att.length;i++){
-						var at = att[i].replace(/(\w+\d?)=.*/i,'$1'),
-						value = att[i].replace(/\w+\d?="(.*)"/i,'$1');
-						ele.atb(at,value);
-					}
-				}
-			}
-		}else if(typeof e.style !== 'undefined'){
+			
+		if(typeof e.style !== 'undefined'){
 			ele = e;
 		}
-		if(ele==null) return false;
+		
+		if(ele==null) return;
+		
 		index = index === 0?'first':index >= parent.childs().length?'end':index;
 		
 		if(typeof index ==='string'){
@@ -122,7 +129,7 @@ hd.jql = {
 		// get child element of an element
 		if(idx !=null && typeof idx !== 'number') return null;
 		var ele =this instanceof NodeList || this instanceof Array?this[0]:this;
-
+		if(!ele.style) return null;
 		var q = ele.query('*'),
 		ch = [];
 		q.each(function(i,e){
@@ -238,6 +245,19 @@ hd.fn = {
 	},
 	isCSS3:('text-shadow' in window.getComputedStyle(document.documentElement)),
 	_string:{
+		parseHTML:function(v){
+			if(typeof v !== 'string') return null;
+			var f = v.replace(/\n+|\s{2,}|\t/g,'');
+			if(f.match(new RegExp(hd.data.regex.node,'gim'))){
+				var container = document.createElement('div');
+				container.innerHTML = f;
+				for(var i=0;i<container.childNodes.length;i++){
+					if(container.childNodes[i].style) hd.import(container.childNodes[i])
+				}
+				return hd.import(container.childNodes);
+			}
+			return null;
+		},
 		isIP:function(v){
 			return v.match(new RegExp('^'+hd.data.regex.ip+'$'))?true:false;
 		}
